@@ -1,0 +1,392 @@
+**********************************************************
+Building a REST API Using Django and Django REST Framework
+	by Kenny Yarboro (kenny.yarboro@gmail.com)
+**********************************************************
+
+*********************
+Slide 23
+*********************
+
+***********
+models.py
+***********
+
+from django.contrib.auth.models import User
+from django.db import models
+
+class Menu(models.Model): 
+  name = models.CharField(max_length=32, unique=True)
+  description = models.CharField(max_length=200)
+  chef = models.ForeignKey(User)
+  available = models.BooleanField(default=False)
+
+  def __unicode__(self):
+    return u'%s by %s %s' % (self.name, self.chef.first_name, self.chef.last_name)
+
+*********************
+Slide 24
+*********************
+
+***********
+models.py
+***********
+
+class MenuItem(models.Model):
+  name = models.CharField(max_length=32, unique=True)
+  description = models.CharField(max_length=200)
+  cost_to_make = models.DecimalField(decimal_places=2, max_digits=5)
+  sale_price = models.DecimalField(decimal_places=2, max_digits=5)
+  available = models.BooleanField(default=False)
+  menu = models.ForeignKey(Menu)
+
+  def __unicode__(self):
+    return u'%s' % (self.name)
+
+*********************
+Slide 25
+*********************
+
+***********
+settings.py
+***********
+
+INSTALLED_APPS = ( 
+  ......
+  'tutorial.restaurantapi',
+)
+
+*********************
+Slide 35
+*********************
+
+***********
+admin.py
+***********
+
+from django.contrib import auth
+from tutorial.restaurantapi.models import Menu, MenuItem
+
+class MenuAdmin(admin.ModelAdmin):
+  pass
+
+class MenuItemAdmin(admin.ModelAdmin):
+  pass
+
+admin.site.register(Menu, MenuAdmin)
+admin.site.register(MenuItem, MenuItemAdmin)
+
+*********************
+Slide 36
+*********************
+
+***********
+admin.py
+***********
+
+class MenuAdmin(admin.ModelAdmin):
+  list_display = ['id', 'name', 'description', 'chef', 'available']
+
+class MenuItemAdmin(admin.ModelAdmin):
+  list_display = ['id', 'name', 'description', 'cost_to_make', 
+    'sale_price', 'available', 'menu']
+
+*********************
+Slide 39
+*********************
+
+***********
+settings.py
+***********
+
+INSTALLED_APPS = ( 
+  ......
+  'rest_framework', 
+  'tutorial.restaurantapi',
+)
+
+*********************
+Slide 42
+*********************
+
+***********
+serializers.py
+***********
+
+from django.contrib.auth.models import User, Group
+from models import Menu, MenuItem
+from rest_framework import serializers
+
+class UserSerializer(serializers.HyperlinkedModelSerializer):
+  class Meta: 
+    model = User
+    fields = ('url', 'username', 'first_name', 'last_name', 
+      'email', 'is_staff', 'groups')
+
+class GroupSerializer(serializers.HyperlinkedModelSerializer):
+  class Meta: 
+    model = Group
+    fields = ('url', 'name')
+
+class MenuSerializer(serializers.HyperlinkedModelSerializer):
+  class Meta: 
+    model = Menu
+    fields = ('url', 'name', 'description', 'chef', 'available')
+
+class MenuItemSerializer(serializers.HyperlinkedModelSerializer):
+  class Meta: 
+    model = MenuItem
+    fields = ('url', 'name', 'description', 'cost_to_make', 'sale_price',
+      'available', 'menu')
+
+*********************
+Slide 45
+*********************
+
+***********
+views.py
+***********
+
+from django.contrib.auth.models import User, Group
+from django.shortcuts import render
+from models import Menu, MenuItem
+from rest_framework import viewsets
+from serializers import *
+
+class UserViewSet(viewsets.ModelViewSet):
+  queryset = User.objects.all()
+  serializer_class = UserSerializer
+
+class GroupViewSet(viewsets.ModelViewSet):
+  queryset = Group.objects.all()
+  serializer_class = GroupSerializer
+
+class MenuViewSet(viewsets.ModelViewSet):
+  queryset = Menu.objects.all()
+  serializer_class = MenuSerializer
+
+class MenuItemViewSet(viewsets.ModelViewSet):
+  queryset = MenuItem.objects.all()
+  serializer_class = MenuItemSerializer
+
+
+*********************
+Slide 48
+*********************
+
+***********
+urls.py
+***********
+
+from django.conf.urls import patterns, include, url
+from django.contrib import admin
+from rest_framework import routers
+from restaurantapi.views import *
+
+router = routers.DefaultRouter()
+router.register(r'user', UserViewSet)
+router.register(r'group', GroupViewSet)
+router.register(r'menu', MenuViewSet)
+router.register(r'menuitem', MenuItemViewSet)
+
+urlpatterns = patterns('',
+  url(r'^', include(router.urls)),
+  url(r'^admin/', include(admin.site.urls)), 
+  url(r'^api-auth/', include('rest_framework.urls', namespace='rest_framework')),
+)
+
+*********************
+Slide 56
+*********************
+
+***********
+views.py
+***********
+
+from rest_framework.permissions import IsAdminUser
+
+class UserViewSet(viewsets.ModelViewSet):
+  queryset = User.objects.all()
+  serializer_class = UserSerializer
+
+  permission_classes = (IsAdminUser, )
+
+class GroupViewSet(viewsets.ModelViewSet):
+  queryset = Group.objects.all()
+  serializer_class = GroupSerializer
+
+  permission_classes = (IsAdminUser, )
+
+*********************
+Slide 59
+*********************
+
+***********
+serializers.py
+***********
+
+class UserSerializer(serializers.HyperlinkedModelSerializer):
+
+  def create(self, validated_data):
+
+    if not 'is_staff' in validated_data:
+      validated_data['is_staff'] = False
+
+    user = User(
+      email = validated_data['email'],
+      username = validated_data['username'],
+      is_staff = validated_data['is_staff'],
+      first_name = validated_data['first_name'],
+      last_name = validated_data['last_name'],
+    )
+
+    user.set_password(validated_data['username'])
+    user.save()
+
+    for group in validated_data['groups']:
+      user.groups.add(group)
+
+    return user  
+
+  class Meta: 
+    model = User
+    fields = ('url', 'username', 'first_name', 'last_name', 
+      'email', 'is_staff', 'groups')
+
+*********************
+Slide 63
+*********************
+
+***********
+validators.py
+***********
+
+from django.core.exceptions import ValidationError
+
+def validate_acceptable_cost_to_make(value):
+  if value > 5.00:
+    raise ValidationError('Unable to accept items that cost more than $5.00 to make.')
+
+*********************
+Slide 64
+*********************
+
+***********
+models.py
+***********
+
+from django.core.validators import validate_slug
+from validators import validate_acceptable_cost_to_make
+
+class MenuItem(models.Model):
+  name = models.CharField(max_length=32, unique=True,
+    validators=[validate_slug])
+  description = models.CharField(max_length=200)
+  cost_to_make = models.DecimalField(decimal_places=2, max_digits=5,
+    validators=[validate_acceptable_cost_to_make])
+  sale_price = models.DecimalField(decimal_places=2, max_digits=5)
+  available = models.BooleanField(default=False)
+  menu = models.ForeignKey(Menu)
+
+  def __unicode__(self):
+    return u'%s' % (self.name)
+
+*********************
+Slide 67
+*********************
+
+***********
+settings.py
+***********
+
+REST_FRAMEWORK = {
+  'DEFAULT_PERMISSION_CLASSES': ('rest_framework.permissions.IsAuthenticated',),
+  'DEFAULT_RENDERER_CLASSES': (
+    'rest_framework.renderers.JSONRenderer',
+    'rest_framework.renderers.BrowsableAPIRenderer',
+    'rest_framework.renderers.XMLRenderer',
+  ),
+}
+
+*********************
+Slide 69
+*********************
+
+***********
+views.py
+***********
+
+from rest_framework import mixins
+from rest_framework import generics
+
+class AvailableMenuList(mixins.ListModelMixin, generics.GenericAPIView):
+
+  permission_classes = ()
+  queryset = Menu.objects.filter(available=True)
+  serializer_class = MenuSerializer
+
+  def get(self, request, *args, **kwargs):
+    return self.list(request, *args, **kwargs)
+
+*********************
+Slide 69
+*********************
+
+***********
+urls.py
+***********
+
+  url(r'^available_menus/$', AvailableMenuList.as_view()), 
+
+*********************
+Slide 70
+*********************
+
+***********
+views.py
+***********
+
+# for custom GET of available menu details
+from django.http import Http404
+from rest_framework.exceptions import APIException
+from rest_framework.response import Response 
+from rest_framework.views import APIView 
+
+# Create your views here.
+
+class ForbiddenAccess(APIException):
+	status_code = 403
+	default_detail = 'Action Forbidden'  
+
+class AvailableMenuDetail(APIView):
+
+	permission_classes = ()
+
+	def get_object(self, pk):
+		try:
+			return Menu.objects.get(pk=pk, available=True)
+
+		except Menu.DoesNotExist:
+			raise Http404
+
+	def get(self, request, pk, format=None):
+		menu = self.get_object(pk)
+		serializer = MenuSerializer(menu, context={'request':request})
+
+		return Response(serializer.data)
+
+	def put(self, request, pk, format=None):
+		raise ForbiddenAccess 
+
+	def delete(self, request, pk, format=None):
+		raise ForbiddenAccess
+
+*********************
+Slide 71
+*********************
+
+***********
+urls.py
+***********
+
+  url(r'^available_menus/(?P<pk>[0-9]+/$', AvailableMenuDetail.as_view()),
+
