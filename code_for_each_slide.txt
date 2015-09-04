@@ -150,7 +150,8 @@ from django.contrib.auth.models import User, Group
 from django.shortcuts import render
 from models import Menu, MenuItem
 from rest_framework import viewsets
-from serializers import *
+from serializers import UserSerializer, GroupSerializer
+from serializers import MenuSerializer, MenuItemSerializer
 
 class UserViewSet(viewsets.ModelViewSet):
   queryset = User.objects.all()
@@ -180,7 +181,8 @@ urls.py
 from django.conf.urls import patterns, include, url
 from django.contrib import admin
 from rest_framework import routers
-from restaurantapi.views import *
+from restaurantapi.views import UserViewSet, GroupViewSet
+from restaurantapi.views import MenuViewSet, MenuItemViewSet
 
 router = routers.DefaultRouter()
 router.register(r'user', UserViewSet)
@@ -303,8 +305,13 @@ REST_FRAMEWORK = {
   'DEFAULT_RENDERER_CLASSES': (
     'rest_framework.renderers.JSONRenderer',
     'rest_framework.renderers.BrowsableAPIRenderer',
-    'rest_framework.renderers.XMLRenderer',
+    'rest_framework_xml.renderers.XMLRenderer',
   ),
+  ‘DEFAULT_PARSER_CLASSES’: (
+    ‘rest_framework.parsers.JSONParser’,
+    ‘rest_framework.parsers.FormParser’,
+    ‘rest_framework.parsers.MultiPartParser’,
+    ‘rest_framework_xml.parsers.XMLRenderer’, 
 }
 
 *********************
@@ -328,8 +335,14 @@ class AvailableMenuList(mixins.ListModelMixin, generics.GenericAPIView):
     return self.list(request, *args, **kwargs)
 
 *********************
-Slide 69
+Slide 70
 *********************
+
+***********
+urls.py
+***********
+
+from restaurantapi.views import AvailableMenuList
 
 ***********
 urls.py
@@ -338,7 +351,7 @@ urls.py
   url(r'^available_menus/$', AvailableMenuList.as_view()), 
 
 *********************
-Slide 70
+Slide 71
 *********************
 
 ***********
@@ -381,8 +394,14 @@ class AvailableMenuDetail(APIView):
 		raise ForbiddenAccess
 
 *********************
-Slide 71
+Slide 72
 *********************
+
+***********
+urls.py
+***********
+
+from restaurantapi.views import AvailableMenuList, AvailableMenuDetail
 
 ***********
 urls.py
